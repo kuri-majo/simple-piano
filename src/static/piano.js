@@ -277,32 +277,46 @@ function svg(tag, attrs = {}, parent = staffEl) {
   return el;
 }
 
+// Glyphs come from Bravura (SMuFL), positioned with its published metrics
+// (redist/Bravura.json): at font-size = 4 staff spaces, 1 em = 4 spaces and
+// each glyph's baseline is the staff position it belongs to.
+const FONT_SIZE = 4 * SPACE;
+const GLYPH = { gClef: "", noteheadBlack: "", accidentalSharp: "" };
+const HEAD_WIDTH = 1.18 * SPACE; // noteheadBlack bbox width
+const STEM_ATTACH_Y = 0.168 * SPACE; // stemUpSE / stemDownNW anchors
+const SHARP_WIDTH = 0.996 * SPACE;
+const STAFF_LINE = 1.1;
+const STEM_WIDTH = 1.3;
+const LEDGER_WIDTH = 1.6;
+const LEDGER_EXTENSION = 0.4 * SPACE;
+const STEM_LENGTH = 3.5 * SPACE;
+const MIDDLE_LINE_DIATONIC = 34; // B4
+
+function glyph(name, x, y, parent) {
+  const t = svg("text", { class: "glyph", x, y, "font-size": FONT_SIZE }, parent);
+  t.textContent = GLYPH[name];
+  return t;
+}
+
 function drawStaffLines() {
   for (let i = 0; i < 5; i++) {
     const y = BOTTOM_LINE_Y - i * SPACE;
-    svg("line", { x1: STAFF_LEFT, x2: viewWidth - STAFF_LEFT, y1: y, y2: y, stroke: "currentColor", "stroke-width": 1.2 });
+    svg("line", { x1: STAFF_LEFT, x2: viewWidth - STAFF_LEFT, y1: y, y2: y, stroke: "currentColor", "stroke-width": STAFF_LINE });
   }
-  const clef = svg("text", { class: "glyph", x: 18, y: BOTTOM_LINE_Y + 1, "font-size": 50 });
-  clef.textContent = "\u{1D11E}";
+  // The G clef's origin sits on the G4 line (second line from the bottom).
+  glyph("gClef", STAFF_LEFT + 10, BOTTOM_LINE_Y - SPACE, staffEl);
 }
 
-function drawWholeNote(g, x, y) {
-  // Filled tilted ellipse with a tilted "hole" punched in it.
-  svg("ellipse", { cx: x, cy: y, rx: 8, ry: 5.6, fill: "currentColor" }, g);
-  svg("ellipse", {
-    cx: x, cy: y, rx: 4.2, ry: 2.6,
-    fill: "var(--surface)",
-    transform: `rotate(-35 ${x} ${y})`,
-  }, g);
-}
-
-function drawLedgerLines(g, x, diatonic) {
+function drawLedgerLines(g, headLeft, diatonic) {
   const lines = [];
   for (let d = 28; d >= diatonic; d -= 2) lines.push(d); // below: C4, A3, …
   for (let d = 40; d <= diatonic; d += 2) lines.push(d); // above: A5, C6, …
   for (const d of lines) {
     const y = yFor(d);
-    svg("line", { x1: x - 13, x2: x + 13, y1: y, y2: y, stroke: "currentColor", "stroke-width": 1.2 }, g);
+    svg("line", {
+      x1: headLeft - LEDGER_EXTENSION, x2: headLeft + HEAD_WIDTH + LEDGER_EXTENSION, y1: y, y2: y,
+      stroke: "currentColor", "stroke-width": LEDGER_WIDTH,
+    }, g);
   }
 }
 
@@ -312,36 +326,64 @@ function renderStaff() {
 
   const visible = columns.slice(-maxColumns());
   visible.forEach((col, ci) => {
-    const x = FIRST_COLUMN_X + ci * COLUMN_GAP;
+    const center = FIRST_COLUMN_X + ci * COLUMN_GAP;
+    // x is the left edge of the column's (unflipped) note heads.
+    const x = center - HEAD_WIDTH / 2;
     const notes = col.notes.map((m) => NOTES[m - FIRST_MIDI]).sort((a, b) => a.diatonic - b.diatonic);
 
-    let prevDiatonic = null;
-    let prevShifted = false;
-    let sharpIndex = 0;
+    // One shared stem per column. The note farthest from the middle line
+    // decides the direction: below it → stem up (right side of the heads),
+    // on or above it → stem down (left side).
+    const low = notes[0].diatonic;
+    const high = notes[notes.length - 1].diatonic;
+    const stemUp = MIDDLE_LINE_DIATONIC - low > high - MIDDLE_LINE_DIATONIC;
+    const stemX = stemUp ? x + HEAD_WIDTH - STEM_WIDTH / 2 : x + STEM_WIDTH / 2;
 
+    // Notes a second apart can't share a side of the stem: walking away from
+    // the stem's anchor note, every other note of a cluster flips across it.
+    const flipOffset = HEAD_WIDTH - STEM_WIDTH;
+    const offsets = new Map();
+    const order = stemUp ? notes : notes.slice().reverse();
+    let prev = null;
+    let prevFlipped = false;
+    for (const note of order) {
+      const flipped = prev !== null && Math.abs(note.diatonic - prev.diatonic) <= 1 && !prevFlipped;
+      offsets.set(note.midi, flipped ? (stemUp ? flipOffset : -flipOffset) : 0);
+      prev = note;
+      prevFlipped = flipped;
+    }
+    const leftmostX = x + Math.min(0, ...offsets.values());
+
+    const columnHeld = notes.some((n) => held.has(n.midi));
+    const stemG = svg("g", { class: "note" + (columnHeld ? " held" : "") });
+    const middleY = yFor(MIDDLE_LINE_DIATONIC);
+    const [stemStart, stemEnd] = stemUp
+      ? [yFor(low) - STEM_ATTACH_Y, Math.min(yFor(high) - STEM_LENGTH, middleY)]
+      : [yFor(high) + STEM_ATTACH_Y, Math.max(yFor(low) + STEM_LENGTH, middleY)];
+    svg("line", {
+      x1: stemX, x2: stemX, y1: stemStart, y2: stemEnd,
+      stroke: "currentColor", "stroke-width": STEM_WIDTH,
+    }, stemG);
+
+    let sharpIndex = 0;
     notes.forEach((note) => {
-      // Notes a second apart in a chord sit on opposite sides of the stem line.
-      const shifted = prevDiatonic !== null && note.diatonic - prevDiatonic <= 1 && !prevShifted;
-      const nx = x + (shifted ? 17 : 0);
+      const headLeft = x + offsets.get(note.midi);
       const y = yFor(note.diatonic);
 
       const g = svg("g", { class: "note" + (held.has(note.midi) ? " held" : "") });
-      drawLedgerLines(g, nx, note.diatonic);
-      drawWholeNote(g, nx, y);
+      drawLedgerLines(g, headLeft, note.diatonic);
+      glyph("noteheadBlack", headLeft, y, g);
       if (note.sharp) {
-        const sx = x - 20 - (sharpIndex % 2) * 12;
-        const s = svg("text", { class: "glyph", x: sx, y: y + 7, "font-size": 22, "text-anchor": "middle" }, g);
-        s.textContent = "♯";
+        const sx = leftmostX - 0.25 * SPACE - SHARP_WIDTH - (sharpIndex % 2) * 1.1 * SPACE;
+        glyph("accidentalSharp", sx, y, g);
         sharpIndex++;
       }
-      prevDiatonic = note.diatonic;
-      prevShifted = shifted;
     });
 
     // Note names under the staff, stacked like the chord (highest on top).
     notes.slice().reverse().forEach((note, i) => {
       const g = svg("g", { class: "note" + (held.has(note.midi) ? " held" : "") });
-      const t = svg("text", { class: "note-name", x, y: NAMES_TOP_Y + i * NAME_LINE }, g);
+      const t = svg("text", { class: "note-name", x: center, y: NAMES_TOP_Y + i * NAME_LINE }, g);
       t.textContent = note.label;
     });
   });

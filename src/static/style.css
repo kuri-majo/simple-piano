@@ -1,3 +1,11 @@
+/* Bravura (SMuFL music font, SIL OFL 1.1 — see fonts/Bravura-OFL.txt), used
+   for the clef, note heads and accidentals on the staff. */
+@font-face {
+  font-family: "Bravura";
+  src: url("fonts/Bravura.woff2") format("woff2");
+  font-display: block;
+}
+
 :root {
   --bg: #f6f4ef;
   --surface: #ffffff;
@@ -83,7 +91,7 @@ h1 {
 }
 
 #staff .glyph {
-  font-family: "Noto Music", "Bravura", "Segoe UI Symbol", "Apple Symbols", serif;
+  font-family: "Bravura";
   fill: currentColor;
 }
 
