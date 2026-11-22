@@ -1,0 +1,74 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGION: europe-west6 # must match REGION in organisatrix's infra/.env (where the shared Artifact Registry repo lives)
+  SERVICE: simple-piano
+  REPOSITORY: apps # shared Artifact Registry repo, see organisatrix/infra
+  # Set these in this repo's Settings -> Secrets and variables -> Actions ->
+  # Variables (see organisatrix/infra/README.md step 4). Keeping them out of
+  # this file means the project ID isn't sitting in the repo's source.
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+  # Actually set by the "Build and push image" step via $GITHUB_ENV, not
+  # here — declared with a placeholder so editors/linters that can't trace
+  # $GITHUB_ENV writes don't flag env.IMAGE as unknown further down.
+  IMAGE: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions below are pinned to commit SHA, not a floating version tag —
+      # this workflow authenticates via Workload Identity Federation, so a
+      # compromised upstream release of any of these would get real cloud
+      # credentials. Re-resolve and bump deliberately, don't switch back to
+      # @v4/@v2 for convenience. SHAs current as of 2026-08-15.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - id: auth
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and push image
+        run: |
+          IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@251330ba9a8a34bfbc1622895f42e1d53fd14522 # v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}
+          # Without this, Cloud Run runs the service as the project's default
+          # compute service account, not the one set up in infra/README.md
+          # step 4 — so any extra roles granted there (step 5, e.g. Vertex AI)
+          # would silently not apply to the running app. deploy-cloudrun@v2
+          # has no dedicated `service_account` input (verified against its
+          # action.yml) — GitHub Actions silently drops unknown `with:` keys,
+          # so a wrong key name here fails silently, not loudly. `flags` is
+          # the actual mechanism.
+          #
+          # --allow-unauthenticated: this app has no sign-in, so anyone on the
+          # internet may invoke it (grants roles/run.invoker to allUsers).
+          # --max-instances caps how far public traffic can scale it, and
+          # with it the bill.
+          flags: --service-account=${{ env.SERVICE_ACCOUNT }} --allow-unauthenticated --max-instances=2

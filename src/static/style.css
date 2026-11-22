@@ -1,0 +1,188 @@
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --text: #22201c;
+  --muted: #6b665d;
+  --line: #22201c;
+  --accent: #c2410c;
+  --white-key: #fdfcf9;
+  --white-key-down: #f3d9c9;
+  --black-key: #1f1d1a;
+  --black-key-down: #9a3412;
+  --key-border: #b9b3a8;
+  --label-on-white: #8a8477;
+  --label-on-black: #d6d1c7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171614;
+    --surface: #211f1c;
+    --text: #ece8e0;
+    --muted: #a39d92;
+    --line: #d8d3c9;
+    --accent: #fb923c;
+    --white-key: #e9e5dc;
+    --white-key-down: #f5c6a5;
+    --black-key: #0d0c0b;
+    --black-key-down: #c2410c;
+    --key-border: #57524a;
+    --label-on-white: #6b665d;
+    --label-on-black: #a39d92;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.toggle {
+  color: var(--muted);
+  font-size: 0.9rem;
+  user-select: none;
+}
+
+.staff-wrap {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+}
+
+#staff {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--line);
+}
+
+#staff .glyph {
+  font-family: "Noto Music", "Bravura", "Segoe UI Symbol", "Apple Symbols", serif;
+  fill: currentColor;
+}
+
+#staff .note { color: var(--line); }
+#staff .note.held { color: var(--accent); }
+
+#staff .note-name {
+  font-size: 13px;
+  fill: var(--muted);
+  text-anchor: middle;
+}
+
+#staff .note.held .note-name { fill: var(--accent); }
+
+.keyboard-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.keyboard {
+  position: relative;
+  display: flex;
+  min-width: 450px;
+  height: 220px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.key {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 60ms;
+}
+
+.key.white {
+  flex: 1 1 0;
+  background: var(--white-key);
+  border: 1px solid var(--key-border);
+  border-left-width: 0;
+  border-radius: 0 0 6px 6px;
+  color: var(--label-on-white);
+}
+
+.key.white:first-child { border-left-width: 1px; }
+.key.white.down { background: var(--white-key-down); }
+
+.key.black {
+  position: absolute;
+  top: 0;
+  height: 62%;
+  background: var(--black-key);
+  border-radius: 0 0 4px 4px;
+  color: var(--label-on-black);
+  z-index: 1;
+  font-size: 11px;
+}
+
+.key.black.down { background: var(--black-key-down); }
+
+.key .label {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+.keyboard.show-labels .key .label { display: flex; }
+
+.key .label kbd {
+  font-family: inherit;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-top: 16px;
+}
+
+.hint kbd {
+  font-family: inherit;
+  border: 1px solid var(--key-border);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.85em;
+}
+
+@media (max-width: 600px) {
+  .keyboard { height: 180px; }
+  /* Black keys are too narrow for "C♯4" here; keep just the shortcut. */
+  .key.black .label > span { display: none; }
+}

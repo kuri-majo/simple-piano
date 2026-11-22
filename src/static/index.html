@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simple Piano</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Noto Music provides the treble clef and accidental glyphs. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Music&display=block">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Simple Piano</h1>
+      <label class="toggle">
+        <input type="checkbox" id="show-labels" checked>
+        Show key labels
+      </label>
+    </header>
+
+    <section class="staff-wrap" aria-label="Notes played, on a treble staff">
+      <svg id="staff" viewBox="0 0 800 170" role="img" aria-live="polite"></svg>
+    </section>
+
+    <section class="keyboard-wrap">
+      <div id="keyboard" class="keyboard show-labels" aria-label="Piano keyboard, C4 to C6"></div>
+    </section>
+
+    <p class="hint">
+      Click or tap the keys, or play with your computer keyboard:
+      <kbd>Z</kbd>–<kbd>M</kbd> for the lower octave, <kbd>Q</kbd>–<kbd>I</kbd> for the upper one,
+      and the rows above them for the black keys.
+    </p>
+  </main>
+  <script src="piano.js"></script>
+</body>
+</html>
